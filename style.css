@@ -101,6 +101,39 @@ body {
   box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
 }
 
+/* Layout Selector */
+.layout-selector {
+  display: flex;
+  gap: 0.5rem;
+  background: var(--bg-tertiary);
+  padding: 0.25rem;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+}
+
+.layout-btn {
+  padding: 0.5rem 1rem;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 0.875rem;
+}
+
+.layout-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.layout-btn.active {
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+  color: white;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
 .btn {
   padding: 0.625rem 1.25rem;
   border: 1px solid var(--border-color);
@@ -134,12 +167,35 @@ body {
   padding: 2rem;
 }
 
-/* Video Grid */
+/* Video Grid Layouts */
 .video-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
   gap: 1rem;
   margin-bottom: 2rem;
+  transition: all 0.3s ease;
+}
+
+/* Default 4x4 layout */
+.video-grid.layout-4x4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+/* 3x3 layout */
+.video-grid.layout-3x3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+/* 2x2 layout */
+.video-grid.layout-2x2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+/* 1x1 layout */
+.video-grid.layout-1x1 {
+  grid-template-columns: 1fr;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .video-container {
@@ -158,6 +214,10 @@ body {
   transform: translateY(-2px);
 }
 
+.video-container.hidden {
+  display: none;
+}
+
 .channel-label {
   position: absolute;
   top: 0.75rem;
@@ -172,6 +232,69 @@ body {
   border: 1px solid var(--glass-border);
   color: var(--text-primary);
 }
+
+/* Health Overlay */
+.health-overlay {
+  position: absolute !important;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1rem;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 100;
+  pointer-events: none;
+  max-width: 280px;
+}
+
+.video-container:hover .health-overlay {
+  opacity: 1;
+}
+
+.health-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+  font-size: 0.75rem;
+}
+
+.health-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.health-stat .label {
+  color: rgba(255, 255, 255, 0.6);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 0.65rem;
+}
+
+.health-stat .value {
+  color: #ffffff;
+  font-weight: 600;
+  font-family: 'Monaco', 'Courier New', monospace;
+  font-size: 0.85rem;
+}
+
+.health-stat .value.good {
+  color: var(--success);
+}
+
+.health-stat .value.warning {
+  color: var(--warning);
+}
+
+.health-stat .value.error {
+  color: var(--error);
+}
+
 
 .status-indicator {
   position: absolute;
@@ -196,9 +319,12 @@ body {
 }
 
 @keyframes pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.5;
   }
@@ -317,35 +443,35 @@ body {
 
 /* Responsive Design */
 @media (max-width: 1600px) {
-  .video-grid {
+  .video-grid:not([class*="layout-"]) {
     grid-template-columns: repeat(3, 1fr);
   }
 }
 
 @media (max-width: 1200px) {
-  .video-grid {
+  .video-grid:not([class*="layout-"]) {
     grid-template-columns: repeat(2, 1fr);
   }
-  
+
   .config-grid {
     grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 768px) {
-  .video-grid {
+  .video-grid:not([class*="layout-"]) {
     grid-template-columns: 1fr;
   }
-  
+
   .header-content {
     flex-direction: column;
     align-items: stretch;
   }
-  
+
   .controls {
     justify-content: center;
   }
-  
+
   .container {
     padding: 1rem;
   }
@@ -356,18 +482,17 @@ body {
   0% {
     background-position: -1000px 0;
   }
+
   100% {
     background-position: 1000px 0;
   }
 }
 
 .loading {
-  background: linear-gradient(
-    90deg,
-    var(--bg-secondary) 0%,
-    var(--bg-tertiary) 50%,
-    var(--bg-secondary) 100%
-  );
+  background: linear-gradient(90deg,
+      var(--bg-secondary) 0%,
+      var(--bg-tertiary) 50%,
+      var(--bg-secondary) 100%);
   background-size: 1000px 100%;
   animation: shimmer 2s infinite;
 }

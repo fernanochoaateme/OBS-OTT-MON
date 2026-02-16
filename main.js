@@ -1,7 +1,9 @@
 // Application State
 let players = [];
 let currentProtocol = 'hls';
+let currentLayout = '4x4';
 let channelConfig = [...CHANNELS]; // Clone from config.js
+let healthMonitorInterval = null;
 
 // Load saved configuration from localStorage
 function loadSavedConfig() {
@@ -34,10 +36,19 @@ function init() {
         updateProtocolButtons();
     }
 
+    // Load saved layout preference
+    const savedLayout = localStorage.getItem('currentLayout');
+    if (savedLayout) {
+        currentLayout = savedLayout;
+        updateLayoutButtons();
+    }
+
     createVideoPlayers();
     createConfigPanel();
     setupEventListeners();
     loadAllStreams();
+    setGridLayout(currentLayout);
+    startHealthMonitoring();
 }
 
 // Create video player elements
@@ -48,9 +59,30 @@ function createVideoPlayers() {
     channelConfig.forEach((channel, index) => {
         const container = document.createElement('div');
         container.className = 'video-container';
+        container.setAttribute('data-channel-id', channel.id);
         container.innerHTML = `
       <div class="channel-label">${channel.name}</div>
       <div class="status-indicator" id="status-${channel.id}"></div>
+      <div class="health-overlay" id="health-${channel.id}">
+        <div class="health-stats">
+          <div class="health-stat">
+            <span class="label">Bitrate</span>
+            <span class="value" data-stat="bitrate">-- Mbps</span>
+          </div>
+          <div class="health-stat">
+            <span class="label">Buffer</span>
+            <span class="value" data-stat="buffer">-- s</span>
+          </div>
+          <div class="health-stat">
+            <span class="label">Resolution</span>
+            <span class="value" data-stat="resolution">--</span>
+          </div>
+          <div class="health-stat">
+            <span class="label">FPS</span>
+            <span class="value" data-stat="fps">--</span>
+          </div>
+        </div>
+      </div>
       <video
         id="player-${channel.id}"
         class="video-js vjs-default-skin"
@@ -204,6 +236,16 @@ function setupEventListeners() {
         });
     });
 
+    // Layout selector
+    document.querySelectorAll('.layout-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const layout = e.target.dataset.layout;
+            if (layout !== currentLayout) {
+                setGridLayout(layout);
+            }
+        });
+    });
+
     // Mute all button
     document.getElementById('muteAllBtn').addEventListener('click', () => {
         const btn = document.getElementById('muteAllBtn');
@@ -282,6 +324,206 @@ function updateProtocolButtons() {
             btn.classList.remove('active');
         }
     });
+}
+
+// Grid Layout Functions
+function setGridLayout(layout) {
+    currentLayout = layout;
+    const grid = document.getElementById('videoGrid');
+
+    // Remove all layout classes
+    grid.classList.remove('layout-4x4', 'layout-3x3', 'layout-2x2', 'layout-1x1');
+
+    // Add new layout class
+    grid.classList.add(`layout-${layout}`);
+
+    // Show/hide channels based on layout
+    const containers = document.querySelectorAll('.video-container');
+    const channelCounts = {
+        '4x4': 16,
+        '3x3': 9,
+        '2x2': 4,
+        '1x1': 1
+    };
+
+    const visibleCount = channelCounts[layout];
+    containers.forEach((container, index) => {
+        if (index < visibleCount) {
+            container.classList.remove('hidden');
+        } else {
+            container.classList.add('hidden');
+        }
+    });
+
+    // Save preference
+    localStorage.setItem('currentLayout', layout);
+    updateLayoutButtons();
+}
+
+function updateLayoutButtons() {
+    document.querySelectorAll('.layout-btn').forEach(btn => {
+        if (btn.dataset.layout === currentLayout) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+}
+
+// Health Monitoring Functions
+function startHealthMonitoring() {
+    // Clear existing interval
+    if (healthMonitorInterval) {
+        clearInterval(healthMonitorInterval);
+    }
+
+    // Update health stats every 2 seconds
+    healthMonitorInterval = setInterval(() => {
+        players.forEach((player, index) => {
+            if (player && !player.isDisposed()) {
+                updateHealthStats(player, channelConfig[index].id);
+            }
+        });
+    }, 2000);
+}
+
+function updateHealthStats(player, channelId) {
+    const healthOverlay = document.getElementById(`health-${channelId}`);
+    if (!healthOverlay) return;
+
+    try {
+        // Get bitrate - support both HLS and DASH
+        let bitrate = '--';
+
+        // Try HLS (vhs)
+        if (player.tech_ && player.tech_.vhs && player.tech_.vhs.playlists) {
+            const bandwidth = player.tech_.vhs.playlists.media()?.attributes?.BANDWIDTH;
+            if (bandwidth) {
+                bitrate = (bandwidth / 1000000).toFixed(2);
+            }
+        }
+
+        // Try DASH
+        if (bitrate === '--' && player.tech_ && player.tech_.dashjs) {
+            try {
+                const dashMetrics = player.tech_.dashjs.getMetricsFor('video');
+                if (dashMetrics) {
+                    const bitrateList = player.tech_.dashjs.getBitrateInfoListFor('video');
+                    const currentIndex = player.tech_.dashjs.getQualityFor('video');
+                    if (bitrateList && bitrateList[currentIndex]) {
+                        bitrate = (bitrateList[currentIndex].bitrate / 1000000).toFixed(2);
+                    }
+                }
+            } catch (dashError) {
+                // DASH metrics not available
+            }
+        }
+
+        // Fallback: estimate from video element
+        if (bitrate === '--') {
+            const videoEl = player.el().querySelector('video');
+            if (videoEl && videoEl.webkitVideoDecodedByteCount) {
+                const bytes = videoEl.webkitVideoDecodedByteCount;
+                const time = videoEl.currentTime;
+                if (time > 0) {
+                    bitrate = ((bytes * 8) / time / 1000000).toFixed(2);
+                }
+            }
+        }
+
+        // Get buffer health
+        let buffer = '--';
+        const buffered = player.buffered();
+        if (buffered.length > 0) {
+            const currentTime = player.currentTime();
+            const bufferedEnd = buffered.end(buffered.length - 1);
+            buffer = (bufferedEnd - currentTime).toFixed(1);
+        }
+
+        // Get resolution
+        let resolution = '--';
+        const videoWidth = player.videoWidth();
+        const videoHeight = player.videoHeight();
+        if (videoWidth && videoHeight) {
+            resolution = `${videoWidth}×${videoHeight}`;
+        }
+
+        // Get FPS - improved detection
+        let fps = '--';
+        const videoEl = player.el().querySelector('video');
+
+        // Try getVideoPlaybackQuality API (most accurate)
+        if (videoEl && videoEl.getVideoPlaybackQuality) {
+            const quality = videoEl.getVideoPlaybackQuality();
+            const currentTime = videoEl.currentTime;
+
+            // Store previous values for calculation
+            if (!player._fpsData) {
+                player._fpsData = {
+                    lastFrames: quality.totalVideoFrames,
+                    lastTime: currentTime
+                };
+            } else {
+                const frameDiff = quality.totalVideoFrames - player._fpsData.lastFrames;
+                const timeDiff = currentTime - player._fpsData.lastTime;
+
+                if (timeDiff > 0 && frameDiff > 0) {
+                    fps = Math.round(frameDiff / timeDiff);
+
+                    // Update stored values
+                    player._fpsData.lastFrames = quality.totalVideoFrames;
+                    player._fpsData.lastTime = currentTime;
+                }
+            }
+        }
+
+        // Fallback: estimate based on common stream types
+        if (fps === '--' && player.tech_ && (player.tech_.vhs || player.tech_.dashjs)) {
+            fps = '~30'; // Most streams are 25-30 fps
+        }
+
+        // Update DOM
+        const bitrateEl = healthOverlay.querySelector('[data-stat="bitrate"]');
+        const bufferEl = healthOverlay.querySelector('[data-stat="buffer"]');
+        const resolutionEl = healthOverlay.querySelector('[data-stat="resolution"]');
+        const fpsEl = healthOverlay.querySelector('[data-stat="fps"]');
+
+        if (bitrateEl) {
+            bitrateEl.textContent = bitrate !== '--' ? `${bitrate} Mbps` : '--';
+            bitrateEl.className = 'value';
+            if (bitrate !== '--' && parseFloat(bitrate) > 1) {
+                bitrateEl.classList.add('good');
+            }
+        }
+
+        if (bufferEl) {
+            bufferEl.textContent = buffer !== '--' ? `${buffer} s` : '--';
+            bufferEl.className = 'value';
+            if (buffer !== '--') {
+                const bufferNum = parseFloat(buffer);
+                if (bufferNum > 2) {
+                    bufferEl.classList.add('good');
+                } else if (bufferNum > 1) {
+                    bufferEl.classList.add('warning');
+                } else {
+                    bufferEl.classList.add('error');
+                }
+            }
+        }
+
+        if (resolutionEl) {
+            resolutionEl.textContent = resolution;
+            resolutionEl.className = 'value';
+        }
+
+        if (fpsEl) {
+            fpsEl.textContent = fps;
+            fpsEl.className = 'value';
+        }
+
+    } catch (e) {
+        console.warn(`Health stats error for channel ${channelId}:`, e);
+    }
 }
 
 // Keyboard shortcuts
