@@ -19,6 +19,29 @@
 </head>
 
 <body>
+  <!-- Login Overlay -->
+  <div id="loginOverlay" class="login-overlay">
+    <div class="login-box">
+      <div class="login-header">
+        <div class="login-logo">🔒</div>
+        <h2>Access Required</h2>
+        <p>Please log in to access the multi-viewer</p>
+      </div>
+      <form id="loginForm">
+        <div class="form-group">
+          <label for="username">Username</label>
+          <input type="text" id="username" placeholder="Enter username" required>
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" placeholder="Enter password" required>
+        </div>
+        <div id="loginError" class="login-error"></div>
+        <button type="submit" class="btn-login">Login</button>
+      </form>
+    </div>
+  </div>
+
   <!-- Header -->
   <header class="header">
     <div class="header-content">

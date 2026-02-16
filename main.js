@@ -27,6 +27,26 @@ function saveConfig() {
 
 // Initialize the application
 function init() {
+    // Check login status
+    checkLoginStatus();
+
+    // Setup login event listener
+    const loginForm = document.getElementById('loginForm');
+    if (loginForm) {
+        loginForm.addEventListener('submit', handleLogin);
+
+        // Allow Enter key to submit
+        const inputs = loginForm.querySelectorAll('input');
+        inputs.forEach(input => {
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    document.querySelector('.btn-login').click();
+                }
+            });
+        });
+    }
+
     loadSavedConfig();
 
     // Load saved protocol preference
@@ -49,6 +69,62 @@ function init() {
     loadAllStreams();
     setGridLayout(currentLayout);
     startHealthMonitoring();
+}
+
+// Login System
+function checkLoginStatus() {
+    const isLoggedIn = sessionStorage.getItem('isLoggedIn') === 'true';
+    const overlay = document.getElementById('loginOverlay');
+
+    if (overlay) {
+        if (isLoggedIn) {
+            overlay.classList.add('hidden');
+        } else {
+            overlay.classList.remove('hidden');
+        }
+    }
+}
+
+function handleLogin(e) {
+    e.preventDefault();
+
+    const usernameInput = document.getElementById('username');
+    const passwordInput = document.getElementById('password');
+    const errorMsg = document.getElementById('loginError');
+    const overlay = document.getElementById('loginOverlay');
+
+    const username = usernameInput.value;
+    const password = passwordInput.value;
+
+    // Hardcoded credentials as requested
+    if (username === 'ateme' && password === 'Server123!') {
+        // Success
+        sessionStorage.setItem('isLoggedIn', 'true');
+        overlay.classList.add('hidden');
+        errorMsg.textContent = '';
+
+        // Clear inputs for security
+        usernameInput.value = '';
+        passwordInput.value = '';
+    } else {
+        // Failure
+        errorMsg.textContent = 'Invalid credentials';
+        passwordInput.value = '';
+
+        // Shake animation effect
+        const loginBox = document.querySelector('.login-box');
+        loginBox.animate([
+            { transform: 'translateX(0)' },
+            { transform: 'translateX(-10px)' },
+            { transform: 'translateX(10px)' },
+            { transform: 'translateX(-10px)' },
+            { transform: 'translateX(10px)' },
+            { transform: 'translateX(0)' }
+        ], {
+            duration: 400,
+            easing: 'ease-in-out'
+        });
+    }
 }
 
 // Create video player elements
@@ -528,6 +604,11 @@ function updateHealthStats(player, channelId) {
 
 // Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
+    // Ignore if typing in an input field
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+        return;
+    }
+
     // M - Mute/Unmute all
     if (e.key === 'm' || e.key === 'M') {
         document.getElementById('muteAllBtn').click();
